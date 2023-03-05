@@ -1,0 +1,12 @@
+[package]
+name = "rust_sound"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+kira = "0.7.1"
+rdev = "0.5.2"
+serde_json = "1.0.94"
+serde = { version="1.0.152", features = ["derive"] }
