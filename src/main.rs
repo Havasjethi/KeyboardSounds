@@ -52,7 +52,7 @@ impl PluginHandledKeyPressHandler {
             .map_err(|e| format!("Config file not found @ {:?}", &plugin_config))?;
 
         let result = serde_json::from_str::<Layout>(&requested)
-            .map_err(|_| "Ubnable to parse config file!")?;
+            .map_err(|_| "Unable to parse config file!")?;
 
         let mut map: HashMap<String, StaticSoundData> = HashMap::new();
 
@@ -93,7 +93,11 @@ impl KeyPressHandler for PluginHandledKeyPressHandler {
     fn handle(&mut self, key: rdev::Key) -> () {
         let key_code = util_functions::keyToKeyCode(key);
         let valami: StaticSoundData = self.sounds.get(key_code).unwrap().clone();
-        self.manager.play(valami).unwrap();
+
+        // TODO :: Optimalization requested: Reduce CPU usage ? Memory ?
+        // Don't throw away this chuck of memory after use, this is wasteful for large sound file.
+        // Currently this throws away ~5-10kb data at every sound play
+        let _unused_borrowed_sound_file = self.manager.play(valami).unwrap();
     }
 }
 
