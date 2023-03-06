@@ -41,19 +41,21 @@ struct Layout {
 }
 
 impl PluginHandledKeyPressHandler {
-    fn new<'a>(plugin_path: &'a str) -> Self {
+    fn new<'a>(plugin_path: &'a str) -> Result<Self, String> {
         use std::fs;
         use std::path;
         let plugin_base = path::Path::new(plugin_path);
 
         let plugin_config = plugin_base.join("config.json");
 
-        let requested =
-            fs::read_to_string(&plugin_config).expect(&format!("Missing: {:?}", plugin_config));
-        let result = serde_json::from_str::<Layout>(&requested).unwrap();
-        dbg!(&result);
+        let requested = fs::read_to_string(&plugin_config)
+            .map_err(|e| format!("Config file not found @ {:?}", &plugin_config))?;
+
+        let result = serde_json::from_str::<Layout>(&requested)
+            .map_err(|_| "Ubnable to parse config file!")?;
 
         let mut map: HashMap<String, StaticSoundData> = HashMap::new();
+
         for (key, value) in result.defines.iter() {
             if value.is_null() {
                 continue;
@@ -69,18 +71,21 @@ impl PluginHandledKeyPressHandler {
                 continue;
             };
 
-            let sound =
-                StaticSoundData::from_file(&sound_path, StaticSoundSettings::default()).unwrap();
-            let start = Instant::now();
-            print!("Insert new sound: {:?} \t ...", &sound_path);
-            println!("({:?})", Instant::now() - start);
+            let sound = StaticSoundData::from_file(&sound_path, StaticSoundSettings::default())
+                .map_err(|error| {
+                    format!(
+                        "Unable to load Sound file @ {:?}\nError: {}",
+                        sound_path, error
+                    )
+                })?;
+
             map.insert(key.into(), sound);
         }
 
-        return PluginHandledKeyPressHandler {
+        return Ok(PluginHandledKeyPressHandler {
             manager: AudioManager::<CpalBackend>::new(AudioManagerSettings::default()).unwrap(),
             sounds: map,
-        };
+        });
     }
 }
 
@@ -92,7 +97,7 @@ impl KeyPressHandler for PluginHandledKeyPressHandler {
     }
 }
 
-fn main() -> () {
+fn main() -> Result<(), String> {
     let vars = std::env::args().collect::<Vec<String>>();
 
     if vars.len() < 2 {
@@ -100,11 +105,17 @@ fn main() -> () {
         println!("Usage: rust_sound <confuration path>");
         println!("\n\t!! Provide configuration folder path as argument !!\n");
         println!("U can browse sound packs here: https://docs.google.com/spreadsheets/d/1PimUN_Qn3CWqfn-93YdVW8OWy8nzpz3w3me41S8S494");
-        return;
+        return Ok(());
     }
 
     let config_folder = vars.get(1).unwrap();
-    let x = PluginHandledKeyPressHandler::new(config_folder);
 
-    init_listener(Box::new(x));
+    Ok(match PluginHandledKeyPressHandler::new(config_folder) {
+        Ok(inner) => init_listener(Box::new(inner)),
+        Err(message) => {
+            println!("Unable to use the app further.");
+            println!("Error occured: {}", message);
+            ()
+        }
+    })
 }
