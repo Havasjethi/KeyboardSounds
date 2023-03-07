@@ -1,7 +1,7 @@
 use rdev::Key;
 
 /// Source: https://github.com/hainguyents13/mechvibes/blob/master/src/libs/keycodes.js#L99P
-pub fn keyToKeyCode(key: Key) -> &'static str {
+pub fn key_to_key_code(key: Key) -> &'static str {
     match key {
         // Key::F13 => "91",
         // Key::F14 => "92",
@@ -18,7 +18,7 @@ pub fn keyToKeyCode(key: Key) -> &'static str {
         Key::F10 => "68",
         Key::F11 => "87",
         Key::F12 => "88",
-        Key::BackQuote => "`",
+        Key::BackQuote => "18",
         Key::Num1 => "2",
         Key::Num2 => "3",
         Key::Num3 => "4",

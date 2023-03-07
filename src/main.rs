@@ -1,9 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::time::Instant;
-
-mod util_functions;
 
 use kira::{
     manager::{backend::cpal::CpalBackend, AudioManager, AudioManagerSettings},
@@ -11,14 +8,17 @@ use kira::{
 };
 use rdev::EventType;
 
+mod util_functions;
+
 fn init_listener(mut x: Box<dyn KeyPressHandler>) {
     use rdev::{listen, Event};
     // This will block.
+
+    println!("[Info] Ready to type.");
+
     if let Err(error) = listen(move |event: Event| {
         match event.event_type {
-            EventType::KeyPress(key) => {
-                x.handle(key);
-            }
+            EventType::KeyPress(key) => x.handle(key),
             _ => (),
         };
     }) {
@@ -44,12 +44,15 @@ impl PluginHandledKeyPressHandler {
     fn new<'a>(plugin_path: &'a str) -> Result<Self, String> {
         use std::fs;
         use std::path;
+
+        println!("[Info] Reading configuration...");
+
         let plugin_base = path::Path::new(plugin_path);
 
         let plugin_config = plugin_base.join("config.json");
 
         let requested = fs::read_to_string(&plugin_config)
-            .map_err(|e| format!("Config file not found @ {:?}", &plugin_config))?;
+            .map_err(|_| format!("Config file not found @ {:?}", &plugin_config))?;
 
         let result = serde_json::from_str::<Layout>(&requested)
             .map_err(|_| "Unable to parse config file!")?;
@@ -62,8 +65,8 @@ impl PluginHandledKeyPressHandler {
             }
 
             let sound_path = if let Some(inner) = value.as_str() {
-                if inner.len() == 0 {
-                    // The path was null, but not filtered
+                if inner.len() == 0 || map.contains_key(key) {
+                    // The path was null, but not filtered || Or already registered
                     continue;
                 }
                 plugin_base.join(inner)
@@ -91,13 +94,11 @@ impl PluginHandledKeyPressHandler {
 
 impl KeyPressHandler for PluginHandledKeyPressHandler {
     fn handle(&mut self, key: rdev::Key) -> () {
-        let key_code = util_functions::keyToKeyCode(key);
-        let valami: StaticSoundData = self.sounds.get(key_code).unwrap().clone();
-
-        // TODO :: Optimalization requested: Reduce CPU usage ? Memory ?
-        // Don't throw away this chuck of memory after use, this is wasteful for large sound file.
-        // Currently this throws away ~5-10kb data at every sound play
-        let _unused_borrowed_sound_file = self.manager.play(valami).unwrap();
+        let key_code = util_functions::key_to_key_code(key);
+        if let Some(sound_item) = self.sounds.get(key_code) {
+            // Note: Cloning the sound data will not use any extra memory.
+            self.manager.play(sound_item.clone()).unwrap();
+        }
     }
 }
 
@@ -105,7 +106,7 @@ fn main() -> Result<(), String> {
     let vars = std::env::args().collect::<Vec<String>>();
 
     if vars.len() < 2 {
-        println!("Havas-KeyLogger 0.1.0");
+        println!("Havas Mechanic Keyboard Imitator _ 1.0.0");
         println!("Usage: rust_sound <confuration path>");
         println!("\n\t!! Provide configuration folder path as argument !!\n");
         println!("U can browse sound packs here: https://docs.google.com/spreadsheets/d/1PimUN_Qn3CWqfn-93YdVW8OWy8nzpz3w3me41S8S494");
@@ -115,7 +116,10 @@ fn main() -> Result<(), String> {
     let config_folder = vars.get(1).unwrap();
 
     Ok(match PluginHandledKeyPressHandler::new(config_folder) {
-        Ok(inner) => init_listener(Box::new(inner)),
+        Ok(inner) => {
+            init_listener(Box::new(inner));
+            ()
+        }
         Err(message) => {
             println!("Unable to use the app further.");
             println!("Error occured: {}", message);
